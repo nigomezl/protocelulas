@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Simulador Protocélulas — Avanzado (PIXI)</title>
+<style>
+  :root{--bg:#081016;--panel:#071018;--muted:#9fb6c6;--accent:#1f77b4}
+  body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:#e6f2f7}
+  #app{display:flex;height:100vh;gap:10px;padding:12px;box-sizing:border-box}
+  #view{flex:1;border-radius:8px;overflow:hidden;background:var(--panel);display:flex;align-items:center;justify-content:center}
+  #ui{width:380px;display:flex;flex-direction:column;gap:10px}
+  .card{background:#021016;padding:12px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.6)}
+  label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+  input[type=number], input[type=range], select{width:100%}
+  .row{display:flex;gap:8px}
+  button{background:var(--accent);border:none;color:white;padding:8px 10px;border-radius:6px;cursor:pointer}
+  button.secondary{background:#2b3942}
+  .small{font-size:12px;color:#9fb6c6}
+  #chartWrap{height:170px}
+  footer{font-size:12px;color:#7f98a6;text-align:center;margin-top:8px}
+  .muted{color:#7f98a6;font-size:12px}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="view" class="card">
+    <div id="stageContainer" style="width:100%;height:100%;"></div>
+  </div>
+
+  <div id="ui">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong>Simulador Protocélulas — Avanzado</strong>
+        <div class="small">Colisiones + biología</div>
+      </div>
+      <hr style="border:none;border-top:1px solid #07252b;margin:10px 0">
+
+      <label>Moléculas por tipo</label>
+      <div style="display:grid;grid-template-columns:1fr 80px;gap:8px;">
+        <div>Aminoácidos (A)</div><input id="inA" type="number" value="100" min="0" step="1">
+        <div>Lípidos (L)</div><input id="inL" type="number" value="150" min="0" step="1">
+        <div>Azúcares (S)</div><input id="inS" type="number" value="80" min="0" step="1">
+        <div>Nucleótidos (N)</div><input id="inN" type="number" value="70" min="0" step="1">
+      </div>
+
+      <div style="margin-top:8px">
+        <label>Velocidad global <span id="speedVal" class="small">0.8x</span></label>
+        <input id="speedRange" type="range" min="0.2" max="2.2" step="0.05" value="0.8">
+      </div>
+
+      <div style="margin-top:8px">
+        <label>Umbral enlace (bondDist): <span id="bondVal" class="small">0.06</span></label>
+        <input id="bondRange" type="range" min="0.02" max="0.2" step="0.01" value="0.06">
+        <label style="margin-top:6px">Umbral protocélula (protoDist): <span id="protoVal" class="small">0.14</span></label>
+        <input id="protoRange" type="range" min="0.06" max="0.3" step="0.01" value="0.14">
+      </div>
+
+      <div style="margin-top:8px">
+        <label>Afinidad lípidos (lipidAffinity): <span id="lipidVal" class="small">0.30</span></label>
+        <input id="lipidRange" type="range" min="0" max="1" step="0.02" value="0.3">
+        <label style="margin-top:6px">Prob de unión (bindProb): <span id="bindVal" class="small">0.12</span></label>
+        <input id="bindRange" type="range" min="0" max="0.5" step="0.01" value="0.12">
+      </div>
+
+      <div style="margin-top:8px">
+        <label>Min partículas para protocélula <span id="minProtoVal" class="small">6</span></label>
+        <input id="minProtoRange" type="range" min="3" max="30" step="1" value="6">
+        <label style="margin-top:6px">Fracción mínima de lípidos en cluster <span id="lipFracVal" class="small">0.35</span></label>
+        <input id="lipFracRange" type="range" min="0" max="1" step="0.05" value="0.35">
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button id="initBtn">Init</button>
+        <button id="playBtn" class="secondary">Play</button>
+        <button id="stepBtn" class="secondary">Step</button>
+        <button id="resetBtn" class="secondary">Reset</button>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button id="exportPNG" class="secondary">Export PNG</button>
+        <button id="exportGIF" class="secondary">Export GIF</button>
+      </div>
+
+      <div style="margin-top:10px" class="muted">
+        <div>Partículas totales: <span id="countAll">0</span></div>
+        <div>Protocélulas actuales: <span id="countProto">0</span></div>
+      </div>
+    </div>
+
+    <div class="card" id="chartCard">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><strong>Histórico</strong></div>
+        <div class="small">Últimos pasos</div>
+      </div>
+      <div id="chartWrap"><canvas id="chart" width="340" height="160"></canvas></div>
+    </div>
+
+    <div class="card small">
+      <div><strong>Nota:</strong> Con 400+ partículas prueba lipidAffinity 0.2–0.6 y protoDist 0.12–0.2.</div>
+      <footer>Funciona offline — Chrome/Firefox recomendados</footer>
+    </div>
+  </div>
+</div>
+
+<!-- CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.2.4/pixi.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+
+<script>
+/* Simulador avanzado: colisiones físicas simples + biología (lipid affinity, binding) */
+
+// UI, PIXI setup (similar a la versión anterior)
+const stageContainer = document.getElementById('stageContainer');
+const width = stageContainer.clientWidth || 900;
+const height = stageContainer.clientHeight || 600;
+const app = new PIXI.Application({ width: Math.max(900,width), height: Math.max(600,height), backgroundColor:0x071018, antialias:true, resolution: window.devicePixelRatio||1 });
+stageContainer.appendChild(app.view);
+
+// UI elements
+const inA = document.getElementById('inA'), inL = document.getElementById('inL'), inS = document.getElementById('inS'), inN = document.getElementById('inN');
+const initBtn = document.getElementById('initBtn'), playBtn = document.getElementById('playBtn'), stepBtn = document.getElementById('stepBtn'), resetBtn = document.getElementById('resetBtn');
+const exportPNG = document.getElementById('exportPNG'), exportGIF = document.getElementById('exportGIF');
+const speedRange = document.getElementById('speedRange'), speedVal = document.getElementById('speedVal');
+const bondRange = document.getElementById('bondRange'), bondVal = document.getElementById('bondVal');
+const protoRange = document.getElementById('protoRange'), protoVal = document.getElementById('protoVal');
+const lipidRange = document.getElementById('lipidRange'), lipidVal = document.getElementById('lipidVal');
+const bindRange = document.getElementById('bindRange'), bindVal = document.getElementById('bindVal');
+const minProtoRange = document.getElementById('minProtoRange'), minProtoVal = document.getElementById('minProtoVal');
+const lipFracRange = document.getElementById('lipFracRange'), lipFracVal = document.getElementById('lipFracVal');
+const countAll = document.getElementById('countAll'), countProto = document.getElementById('countProto');
+
+// Chart
+const ctx = document.getElementById('chart').getContext('2d');
+const chart = new Chart(ctx, {
+  type:'line',
+  data:{labels:[], datasets:[
+    {label:'A', data:[], borderColor:'#1f77b4', fill:false},
+    {label:'L', data:[], borderColor:'#ff7f0e', fill:false},
+    {label:'S', data:[], borderColor:'#2ca02c', fill:false},
+    {label:'N', data:[], borderColor:'#d62728', fill:false},
+    {label:'Protos', data:[], borderColor:'violet', fill:false, borderWidth:2}
+  ]},
+  options:{animation:false, responsive:true, maintainAspectRatio:false}
+});
+
+// parameters
+let params = {
+  bondDist: +bondRange.value,
+  protoDist: +protoRange.value,
+  speed: +speedRange.value,
+  lipidAffinity: +lipidRange.value,
+  bindProb: +bindRange.value,
+  minProto: +minProtoRange.value,
+  lipidFracThreshold: +lipFracRange.value
+};
+speedVal.textContent = params.speed.toFixed(2)+'x'; bondVal.textContent = params.bondDist; protoVal.textContent = params.protoDist;
+lipidVal.textContent = params.lipidAffinity.toFixed(2); bindVal.textContent = params.bindProb.toFixed(2);
+minProtoVal.textContent = params.minProto; lipFracVal.textContent = params.lipidFracThreshold.toFixed(2);
+
+let molecules = [], running=false, step=0;
+let grid={}, cellSize=0.12;
+const COLOR = { A:0x1f77b4, L:0xff7f0e, S:0x2ca02c, N:0xd62728 };
+
+// layers
+const particlesLayer = new PIXI.Container(); app.stage.addChild(particlesLayer);
+const bondsGraphics = new PIXI.Graphics(); app.stage.addChild(bondsGraphics);
+const protoGraphics = new PIXI.Graphics(); app.stage.addChild(protoGraphics);
+
+// helpers
+const randUnit = ()=> (Math.random()-0.5);
+const gridKey = (ix,iy)=> ix+','+iy;
+
+function rebuildGrid(){
+  grid = {};
+  cellSize = params.protoDist * 1.05;
+  for (let i=0;i<molecules.length;i++){
+    const m = molecules[i];
+    const ix = Math.floor(m.x / cellSize);
+    const iy = Math.floor(m.y / cellSize);
+    const k = gridKey(ix,iy);
+    if (!grid[k]) grid[k]=[];
+    grid[k].push(i);
+  }
+}
+function neighborsIndex(idx){
+  const m = molecules[idx];
+  const ix = Math.floor(m.x / cellSize);
+  const iy = Math.floor(m.y / cellSize);
+  const res = new Set();
+  for (let dx=-1; dx<=1; dx++){
+    for (let dy=-1; dy<=1; dy++){
+      const k = gridKey(ix+dx, iy+dy);
+      if (!grid[k]) continue;
+      for (const j of grid[k]) if (j!==idx) res.add(j);
+    }
+  }
+  return Array.from(res);
+}
+
+// init
+function initSimulation(){
+  molecules.forEach(m=> m.graphics.destroy());
+  molecules=[]; particlesLayer.removeChildren(); bondsGraphics.clear(); protoGraphics.clear();
+  chart.data.labels=[]; chart.data.datasets.forEach(ds=>ds.data=[]); chart.update();
+  step=0;
+  const NA=+inA.value, NL=+inL.value, NS=+inS.value, NN=+inN.value;
+  const total = NA+NL+NS+NN; countAll.textContent = total;
+  const types = [...Array(NA).fill('A'), ...Array(NL).fill('L'), ...Array(NS).fill('S'), ...Array(NN).fill('N')];
+  for (let i=types.length-1;i>0;i--){ const r=Math.floor(Math.random()*(i+1)); [types[i],types[r]]=[types[r],types[i]]; }
+  for (const t of types){
+    const g = new PIXI.Graphics(); g.beginFill(COLOR[t]); g.drawCircle(0,0,5); g.endFill();
+    g.x = Math.random() * app.renderer.width; g.y = Math.random() * app.renderer.height;
+    particlesLayer.addChild(g);
+    molecules.push({
+      x: g.x / app.renderer.width,
+      y: g.y / app.renderer.height,
+      vx: randUnit()*0.01, vy: randUnit()*0.01,
+      type: t, graphics: g,
+      boundTo: new Set() // indices it's temporarily bound to
+    });
+  }
+  rebuildGrid();
+  updateHUD(0, {A:NA, L:NL, S:NS, N:NN, protos:0});
+}
+
+// physics step with collisions, attractions, bindings
+function simulationStep(){
+  // update params from UI
+  params.bondDist = +bondRange.value; params.protoDist = +protoRange.value; params.speed = +speedRange.value;
+  params.lipidAffinity = +lipidRange.value; params.bindProb = +bindRange.value;
+  params.minProto = +minProtoRange.value; params.lipidFracThreshold = +lipFracRange.value;
+  speedVal.textContent = params.speed.toFixed(2)+'x'; bondVal.textContent = params.bondDist; protoVal.textContent = params.protoDist;
+  lipidVal.textContent = params.lipidAffinity.toFixed(2); bindVal.textContent = params.bindProb.toFixed(2);
+  minProtoVal.textContent = params.minProto; lipFracVal.textContent = params.lipidFracThreshold.toFixed(2);
+
+  const w = app.renderer.width, h = app.renderer.height;
+  const N = molecules.length;
+  const bondDist2 = params.bondDist * params.bondDist;
+  const protoDist2 = params.protoDist * params.protoDist;
+
+  // Move particles (brownian + small lipid attraction)
+  for (let i=0;i<N;i++){
+    const m = molecules[i];
+    // attraction: if lipid, small pull toward nearby lipids (local)
+    if (m.type === 'L'){
+      const neigh = neighborsIndex(i);
+      let ax=0, ay=0, count=0;
+      for (const j of neigh){
+        if (j===i) continue;
+        const mj = molecules[j];
+        if (mj.type === 'L'){
+          const dx = mj.x - m.x, dy = mj.y - m.y;
+          const d2 = dx*dx + dy*dy;
+          if (d2 < (params.protoDist*params.protoDist)){
+            ax += dx; ay += dy; count++;
+          }
+        }
+      }
+      if (count>0){
+        ax /= count; ay /= count;
+        // small acceleration proportional to lipidAffinity
+        m.vx += ax * params.lipidAffinity * 0.006;
+        m.vy += ay * params.lipidAffinity * 0.006;
+      }
+    }
+
+    // update position
+    m.x += m.vx * params.speed;
+    m.y += m.vy * params.speed;
+
+    // boundary reflect
+    if (m.x < 0){ m.x=0; m.vx *= -0.9; }
+    if (m.x > 1){ m.x=1; m.vx *= -0.9; }
+    if (m.y < 0){ m.y=0; m.vy *= -0.9; }
+    if (m.y > 1){ m.y=1; m.vy *= -0.9; }
+
+    // update graphic
+    m.graphics.x = m.x * w; m.graphics.y = m.y * h;
+  }
+
+  // spatial hash for neighbor queries
+  rebuildGrid();
+
+  // clear visuals
+  bondsGraphics.clear(); protoGraphics.clear();
+
+  // collisions and binding: for performance do neighbor-based pair handling
+  const processed = new Set();
+  for (let i=0;i<N;i++){
+    const neigh = neighborsIndex(i);
+    for (const j of neigh){
+      if (j <= i) continue;
+      const a = molecules[i], b = molecules[j];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d2 = dx*dx + dy*dy;
+
+      // collision radius (normalized): use 0.01 as radius (~6 px at 600px)
+      const colR = 0.0125;
+      const colR2 = colR*colR;
+      if (d2 < colR2){
+        // elastic-ish collision: exchange velocity components along normal
+        const nx = dx, ny = dy; const nl = Math.sqrt(nx*nx + ny*ny) || 1;
+        const unx = nx/nl, uny = ny/nl;
+        // relative velocity in normal direction
+        const rv = (b.vx - a.vx)*unx + (b.vy - a.vy)*uny;
+        if (rv < 0){ // moving towards each other
+          const impulse = -rv*0.9;
+          a.vx -= impulse*unx; a.vy -= impulse*uny;
+          b.vx += impulse*unx; b.vy += impulse*uny;
+        }
+        // separate slightly to avoid sticking
+        const sep = (colR - Math.sqrt(d2))/2;
+        const shiftx = unx * sep; const shifty = uny * sep;
+        a.x -= shiftx; a.y -= shifty; b.x += shiftx; b.y += shifty;
+      }
+
+      // drawing bonds when within bondDist
+      if (d2 < bondDist2){
+        bondsGraphics.lineStyle(0.6, 0xC8C8C8, 0.35);
+        bondsGraphics.moveTo(a.x*w, a.y*h); bondsGraphics.lineTo(b.x*w, b.y*h);
+
+        // probabilistic binding: form temporary bond (store indices)
+        if (Math.random() < params.bindProb){
+          a.boundTo.add(j); b.boundTo.add(i);
+        }
+      }
+    }
+  }
+
+  // cluster detection (BFS) with protoDist, and evaluate lipid fraction
+  const visited = new Uint8Array(N);
+  const clusters = [];
+  for (let i=0;i<N;i++){
+    if (visited[i]) continue;
+    const q = [i]; visited[i]=1;
+    let qi=0;
+    while (qi<q.length){
+      const u = q[qi++];
+      const neigh = neighborsIndex(u);
+      for (const v of neigh){
+        if (visited[v]) continue;
+        const dx = molecules[u].x - molecules[v].x, dy = molecules[u].y - molecules[v].y;
+        if (dx*dx + dy*dy < protoDist2){
+          visited[v] = 1;
+          q.push(v);
+        }
+      }
+    }
+    if (q.length >= params.minProto){
+      // compute lipid fraction
+      let lipCount = 0;
+      for (const idx of q) if (molecules[idx].type === 'L') lipCount++;
+      const lipFrac = lipCount / q.length;
+      // require lipid fraction threshold to be a protocell candidate
+      if (lipFrac >= params.lipidFracThreshold){
+        clusters.push({ members:q, lipFrac });
+      }
+    }
+  }
+
+  // draw protocells (membrane circle + faint fill)
+  for (const c of clusters){
+    let sx=0, sy=0;
+    for (const idx of c.members){ sx += molecules[idx].x; sy += molecules[idx].y; }
+    const cx = sx / c.members.length, cy = sy / c.members.length;
+    let rsum=0;
+    for (const idx of c.members){
+      const dx = molecules[idx].x - cx, dy = molecules[idx].y - cy;
+      rsum += Math.sqrt(dx*dx + dy*dy);
+    }
+    const radius = (rsum / c.members.length) * Math.max(w,h) + 10;
+    protoGraphics.beginFill(0x9400D3, 0.06);
+    protoGraphics.lineStyle(2, 0x9400D3, 0.9);
+    protoGraphics.drawCircle(cx*w, cy*h, radius);
+    protoGraphics.endFill();
+  }
+
+  // update counts & HUD
+  const counts = {A:0,L:0,S:0,N:0, protos: clusters.length};
+  for (const m of molecules) counts[m.type]++;
+  updateHUD(step, counts);
+  countProto.textContent = clusters.length;
+  step++;
+}
+
+// HUD update
+function updateHUD(stepCount, counts){
+  chart.data.labels.push(stepCount);
+  chart.data.datasets[0].data.push(counts.A);
+  chart.data.datasets[1].data.push(counts.L);
+  chart.data.datasets[2].data.push(counts.S);
+  chart.data.datasets[3].data.push(counts.N);
+  chart.data.datasets[4].data.push(counts.protos);
+  if (chart.data.labels.length > 200){
+    chart.data.labels.shift();
+    chart.data.datasets.forEach(ds=>ds.data.shift());
+  }
+  chart.update('none');
+}
+
+// ticker
+app.ticker.maxFPS = 60;
+app.ticker.add(()=>{ if (running) simulationStep(); });
+
+// small wrappers
+initBtn.addEventListener('click', ()=>{ initSimulation(); });
+playBtn.addEventListener('click', ()=>{ running = !running; playBtn.textContent = running ? 'Pause' : 'Play'; });
+stepBtn.addEventListener('click', ()=> simulationStep());
+resetBtn.addEventListener('click', ()=>{ initSimulation(); running=false; playBtn.textContent='Play'; });
+speedRange.addEventListener('input', ()=>{ params.speed = +speedRange.value; speedVal.textContent=params.speed.toFixed(2)+'x'; });
+bondRange.addEventListener('input', ()=>{ params.bondDist = +bondRange.value; bondVal.textContent = params.bondDist; });
+protoRange.addEventListener('input', ()=>{ params.protoDist = +protoRange.value; protoVal.textContent = params.protoDist; });
+lipidRange.addEventListener('input', ()=>{ params.lipidAffinity = +lipidRange.value; lipidVal.textContent = params.lipidAffinity.toFixed(2); });
+bindRange.addEventListener('input', ()=>{ params.bindProb = +bindRange.value; bindVal.textContent = params.bindProb.toFixed(2); });
+minProtoRange.addEventListener('input', ()=>{ params.minProto = +minProtoRange.value; minProtoVal.textContent = params.minProto; });
+lipFracRange.addEventListener('input', ()=>{ params.lipidFracThreshold = +lipFracRange.value; lipFracVal.textContent = params.lipidFracThreshold.toFixed(2); });
+
+// export PNG
+exportPNG.addEventListener('click', ()=>{ const url = app.view.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download='frame.png'; a.click(); });
+
+// export GIF (simple capture sequence)
+exportGIF.addEventListener('click', async ()=>{
+  const gif = new GIF({ workers: 2, quality: 10, workerScript: 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js' });
+  const frames = 90; // configurable
+  const prevRunning = running;
+  running = true; playBtn.textContent='Pause';
+  for (let i=0;i<frames;i++){
+    for (let s=0;s<1;s++) simulationStep();
+    await new Promise(r=>setTimeout(r, 30));
+    gif.addFrame(app.view, {copy:true, delay:80});
+  }
+  gif.on('finished', function(blob){ const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='sim_protos.gif'; a.click(); });
+  gif.render();
+  running = prevRunning;
+});
+
+// start
+initSimulation();
+</script>
+</body>
+</html>
