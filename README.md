@@ -1,12 +1,12 @@
 # protocelulas
 
-#Indice
+# Indice
 - Indice
 - Concepto
 - Estructuras
 - Instalacion
 
-#Concepto
+# Concepto
 Explicación del Simulador de Protocélulas El simulador reproduce un escenario prebiótico donde
 distintos tipos de moléculas interactúan física y químicamente en un entorno cerrado. Cada "bola" que
 aparece en pantalla representa una molécula con propiedades específicas. 1. Tipos de moléculas (las
@@ -37,7 +37,7 @@ no intenta replicar la biología real con exactitud, sino mostrar visualmente c�
 cuando siguen reglas físicas y químicas básicas, pueden producir estructuras complejas y “vivas”
 como protocélulas
 
-#Estructuras
+# Estructuras
 Estructuras de Datos en el Simulador de Protocélulas
 Este documento explica de forma sencilla cómo está construido el simulador y cuáles son las
 estructuras de datos que permiten que funcione, centrándonos en el grafo dinámico.
@@ -70,5 +70,5 @@ Estructuras de datos esenciales:
 → Sets
 → Arreglo de objetos
 
-#Instalacion
+# Instalacion
 Solo hay que descargar el archivo html y luego ejecutarlo pormedio de un navegador
