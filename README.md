@@ -71,4 +71,4 @@ Estructuras de datos esenciales:
 → Arreglo de objetos
 
 # Instalacion
-Solo hay que descargar el archivo html y luego ejecutarlo pormedio de un navegador
+Solo hay que descargar el archivo html y luego ejecutarlo por medio de un navegador
